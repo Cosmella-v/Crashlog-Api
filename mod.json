@@ -13,6 +13,9 @@
 	},
 	"id": "cosmella.extra_crash_data",
 	"name": "Crashlog Api",
+	"links": {
+		"source": "https://github.com/Cosmella-v/Crashlog-Api"
+	},
 	"tags": ["api","utility"],
 	"version": "v1.0.0",
 	"developer": "Cosmella",

@@ -20,6 +20,6 @@ $on_mod(Loaded) {
 		    .post();
 	});
 };
-``
+```
 
 This is where she makes a mod.
