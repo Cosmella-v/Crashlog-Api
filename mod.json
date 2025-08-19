@@ -1,0 +1,20 @@
+{
+	"geode": "4.6.2",
+	"gd": {
+		"win": "2.2074",
+		"android": "2.2074",
+		"mac": "2.2074",
+		"ios": "2.2074"
+	},
+	"api": {
+		"include": [
+			"api/main.hpp"
+		]
+	},
+	"id": "cosmella.extra_crash_data",
+	"name": "Crashlog Api",
+	"tags": ["api","utility"],
+	"version": "v1.0.0",
+	"developer": "Cosmella",
+	"description": "allows mods to add data to provide in the crashlog"
+}
