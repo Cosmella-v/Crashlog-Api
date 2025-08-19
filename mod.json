@@ -17,7 +17,7 @@
 		"source": "https://github.com/Cosmella-v/Crashlog-Api"
 	},
 	"tags": ["api","utility"],
-	"version": "v1.0.0",
+	"version": "v1.0.1",
 	"developer": "Cosmella",
 	"description": "allows mods to add data to provide in the crashlog"
 }

@@ -42,7 +42,7 @@ public:
             callback();
         } else {
             auto mod = geode::Loader::get()->getInstalledMod("cosmella.extra_crash_data");
-            if (!mod || !mod->isEnabled()) return;
+            if (!mod) return;
 
             new geode::EventListener(
                 [callback = std::forward<F>(callback)](geode::ModStateEvent*) {
