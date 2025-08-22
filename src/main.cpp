@@ -1,11 +1,9 @@
 #include <Geode/Geode.hpp>
 #include <Geode/Utils.hpp>
-#include <dbghelp.h>
 #include <iostream>
-#include <psapi.h>
-#include <windows.h>
 using namespace geode::prelude;
 #include "../api/main.hpp"
+#include "GeodeFunctions.hpp"
 
 #define POP_PREV_LINE_STREAM(ss, outVar) \
     do { \
@@ -28,12 +26,12 @@ using namespace geode::prelude;
     } while(0)
 	
 namespace Crash {
-inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> beforeGeodeLoader;
-inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> afterGeodeLoader;
+	inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> beforeGeodeLoader;
+	inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> afterGeodeLoader;
 
-inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> beforeModRequest;
-inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> onModRequest;
-inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> After;
+	inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> beforeModRequest;
+	inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> onModRequest;
+	inline std::unordered_map<geode::Mod *, ExtraCrashData::ModData *> After;
 } // namespace Crash
 
 using printGeodeInfo_t = void (*)(std::stringstream &);
@@ -58,7 +56,7 @@ void vprintGeodeInfoH(std::stringstream &stream) {
 			);
 		});
 		for (auto mod : mods) {
-			stream << fmt::format("== From {} == \n{}\n", mod->getID(), Crash::beforeGeodeLoader[mod]->OnCrash());
+			stream << fmt::format("== From {} == \n{}\n\n", mod->getID(), Crash::beforeGeodeLoader[mod]->OnCrash());
 		}
 		stream << "\n" << lastLine << "\n";
 	}
@@ -82,7 +80,7 @@ void vprintGeodeInfoH(std::stringstream &stream) {
 		});
 		stream << "\n";
 		for (auto mod : mods) {
-			stream << fmt::format("== From {} == \n{}\n", mod->getID(), Crash::afterGeodeLoader[mod]->OnCrash());
+			stream << fmt::format("== From {} == \n{}\n\n", mod->getID(), Crash::afterGeodeLoader[mod]->OnCrash());
 		}
 	}
 }
@@ -111,7 +109,7 @@ void vcrashlog_H(std::stringstream &stream) {
 			);
 		});
 		for (auto mod : mods) {
-			stream << fmt::format("== From {} == \n{}\n", mod->getID(), Crash::beforeModRequest[mod]->OnCrash());
+			stream << fmt::format("== From {} == \n{}\n\n", mod->getID(), Crash::beforeModRequest[mod]->OnCrash());
 		}
 		stream << "\n" << lastLine << "\n";
 	}
@@ -132,7 +130,7 @@ void vcrashlog_H(std::stringstream &stream) {
 			Extra = data->OnCrash();
 		};
 		if (ExtraCrashData::ModData *data = Crash::After[mod]) {
-			extraStream << fmt::format("== From {} == \n{}\n", mod->getID(), data->OnCrash());
+			extraStream << fmt::format("== From {} == \n{}\n\n", mod->getID(), data->OnCrash());
 		};
 		stream << fmt::format("{} | [{}] {} {}\n",
 		                      mod->isCurrentlyLoading() ? "o"sv : mod->isEnabled()     ? "x"sv
@@ -148,74 +146,115 @@ void vcrashlog_H(std::stringstream &stream) {
 	       << extraStream.str();
 }
 
-using SymInitialize_t = BOOL(WINAPI *)(HANDLE, PCSTR, BOOL);
-using SymSetOptions_t = DWORD(WINAPI *)(DWORD);
-using SymFromName_t = BOOL(WINAPI *)(HANDLE, PCSTR, struct _SYMBOL_INFO *);
+void H_crashed(std::string crashinfo) {
+  	std::stringstream ss;
+    ss << "Geode crashed! This is the extra info file for the developer\n";
+    ss << "Please submit this with the crash report to the developer of the mod that caused it.\n";
 
-void SetupPrintmodsHook() {
-	HMODULE hDbgHelp = LoadLibraryA("Dbghelp.dll");
-	if (!hDbgHelp) {
-		log::error("Failed to load Dbghelp.dll, System failed to load mod!");
-		return;
-	}
+    ss << "\n== Geode Information ==\n";
+    vprintGeodeInfoH(ss);
+	
+	ss << "\n== Crash Information ==\n";
+	ss << crashinfo;
 
-	auto SymInitialize = (SymInitialize_t)GetProcAddress(hDbgHelp, "SymInitialize");
-	auto SymSetOptions = (SymSetOptions_t)GetProcAddress(hDbgHelp, "SymSetOptions");
-	auto SymFromName = (SymFromName_t)GetProcAddress(hDbgHelp, "SymFromName");
+    ss << "\n== Installed Mods ==\n";
+    vcrashlog_H(ss);
 
-	if (!SymInitialize || !SymSetOptions || !SymFromName) {
-		log::error("Failed to get DbgHelp functions");
-		FreeLibrary(hDbgHelp);
-		return;
-	}
 
-	HANDLE process = GetCurrentProcess();
-	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
-	if (!SymInitialize(process, nullptr, TRUE)) {
-		log::error("SymInitialize failed with error {}", GetLastError());
-		FreeLibrary(hDbgHelp);
-		return;
-	}
+    std::ofstream actualFile;
+    auto const now = std::time(nullptr);
+    auto const tm = *std::localtime(&now);
+    std::ostringstream oss;
 
-	SYMBOL_INFO *symbol = (SYMBOL_INFO *)calloc(1, sizeof(SYMBOL_INFO) + 256);
-	symbol->MaxNameLen = 255;
-	symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+    oss << std::put_time(&tm, "%F_%H-%M-%S");
+    actualFile.open(
+       (geode::dirs::getGeodeDir() / "crashlogs") / ("Extra_" + oss.str() + ".log"), std::ios::app
+    );
+    actualFile << ss.rdbuf() << std::flush;
+    actualFile.close();
+};
 
-	if (SymFromName(process, "crashlog::printMods", symbol)) {
-		auto wrap = Mod::get()->hook(
-		    reinterpret_cast<void *>(symbol->Address),
-		    &vcrashlog_H,
-		    "crashlog::printMods");
-		log::error("Hooked crashlog::printMods at {:#x}, result: {}", symbol->Address, wrap.isOk());
-	} else {
-		log::error("Failed to resolve crashlog::printMods (err {})", GetLastError());
-	}
-	symbol = (SYMBOL_INFO *)calloc(1, sizeof(SYMBOL_INFO) + 256);
-	symbol->MaxNameLen = 255;
-	symbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+void H_crashed() {
+	H_crashed("UNKNOWN ERROR");
+};
 
-	if (SymFromName(process, "crashlog::printGeodeInfo", symbol)) {
-		printGeodeInfoOriginal = reinterpret_cast<printGeodeInfo_t>(symbol->Address);
-		auto wrap = Mod::get()->hook(
-		    reinterpret_cast<void *>(symbol->Address),
-		    &vprintGeodeInfoH,
-		    "crashlog::printGeodeInfo");
-		log::error("Hooked crashlog::printGeodeInfo at {:#x}, result: {}", symbol->Address, wrap.isOk());
-	} else {
-		log::error("Failed to resolve crashlog::printGeodeInfo (err {})", GetLastError());
-	}
+#ifdef GEODE_IS_ANDROID
+#include <unwind.h>
+#include <dlfcn.h>
 
-	free(symbol);
-	using SymCleanup_t = BOOL(WINAPI *)(HANDLE);
-	auto SymCleanup = (SymCleanup_t)GetProcAddress(hDbgHelp, "SymCleanup");
-	if (SymCleanup)
-		SymCleanup(process);
+inline void androidSignalHandler(int signal, siginfo_t* info, void* context) {
+    std::string crashInfo = fmt::format("Android signal {} at address 0x{:X}",
+        signal, reinterpret_cast<uintptr_t>(info->si_addr));
 
-	FreeLibrary(hDbgHelp);
+	H_crashed(crashInfo);
+    std::abort();
 }
 
+inline void setupAndroidHandlers() {
+    struct sigaction sa;
+    sa.sa_sigaction = androidSignalHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO;
+
+    sigaction(SIGSEGV, &sa, nullptr);
+    sigaction(SIGBUS, &sa, nullptr);
+    sigaction(SIGFPE, &sa, nullptr);
+    sigaction(SIGILL, &sa, nullptr);
+}
+#endif
+
+
+void Hooks() {
+	GeodeHooker* Hooker = GeodeHooker::spawn();
+
+	if (!Hooker->m_working) {
+		return log::error("Failed to load Hooker, Reason: {}",Hooker->m_errorMSG);
+	};
+	#ifdef GEODE_IS_ANDROID64
+		#define _____Hook_Get(Name, NameAndroid32, NameAndroid64) \
+			Hooker->Get(NameAndroid64);
+	#elif defined(GEODE_IS_ANDROID32)
+		#define _____Hook_Get(Name, NameAndroid32, NameAndroid64) \
+			Hooker->Get(NameAndroid32);
+	#else
+		#define _____Hook_Get(Name, NameAndroid32, NameAndroid64) \
+			Hooker->Get(Name);
+	#endif
+
+	#define Hook(outvar,Name,Mangled32,Mangled64,fun) \
+	auto outvar = _____Hook_Get(Name,Mangled32,Mangled64) \
+	if (outvar != 0) { \
+		auto wrap = Mod::get()->hook( \
+		    reinterpret_cast<void *>(outvar), \
+		    &fun, \
+		    Name); \
+		log::error("Hooked {} at {:#x}, result: {}", Name,outvar, wrap.isOk()); \
+	} else { \
+		log::error("Failed to resolve {} (unable to find)",Name); \
+	} 
+	
+	Hook(outvar_printMods,"crashlog::printMods","_ZN8crashlog9printModsERNSt6__ndk118basic_stringstreamIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE","_ZN8crashlog9printModsERNSt6__ndk118basic_stringstreamIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE", vcrashlog_H)
+	Hook(outvar_printGeodeInfo,"crashlog::printGeodeInfo","_ZN8crashlog14printGeodeInfoERNSt6__ndk118basic_stringstreamIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE","_ZN8crashlog14printGeodeInfoERNSt6__ndk118basic_stringstreamIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE", vprintGeodeInfoH)
+
+	#ifdef GEODE_IS_ANDROID
+	//Hook(outvar_otherprintMods,"crashlog::printModsAndroid","_ZN8crashlog9printModsERNSt6__ndk118basic_stringstreamIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE","_ZN8crashlog9printModsERNSt6__ndk118basic_stringstreamIcNS0_11char_traitsIcEENS0_9allocatorIcEEEE", vcrashlog_H)
+	setupAndroidHandlers();
+	#endif
+	if (outvar_printGeodeInfo != 0) {
+		printGeodeInfoOriginal = reinterpret_cast<printGeodeInfo_t>(outvar_printGeodeInfo);
+	};
+	
+	// undef macros
+	#undef _____Hook_Get
+	#undef Hook
+
+	delete Hooker;
+}
+
+#define __EXTRACRASHDATA_API_TEST__
+
 $on_mod(Loaded) {
-	SetupPrintmodsHook();
+	Hooks();
 
 	new EventListener<EventFilter<ExtraCrashData::CrashlogEvent>>(+[](ExtraCrashData::CrashlogEvent *event) {
 		//log::debug("event added: {} {} {}", event->sender, event->m_self->OnCrash(), (int)event->m_type);
