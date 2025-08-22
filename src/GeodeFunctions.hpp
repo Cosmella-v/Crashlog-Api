@@ -7,7 +7,7 @@ using namespace geode::prelude;
 #include <dlfcn.h>
 #endif
 
-#ifdef GEODE_WINDOWS
+#ifdef GEODE_IS_WINDOWS
 #include <dbghelp.h>
 #include <psapi.h>
 #include <windows.h>
@@ -32,7 +32,7 @@ class GeodeHooker {
 	bool m_working = false;
 	std::string m_errorMSG = "";
 
-    #ifdef GEODE_WINDOWS
+    #ifdef GEODE_IS_WINDOWS
         HANDLE m_process = nullptr;
         hDbgHelp_fun m_functions = hDbgHelp_fun();
         unsigned long long Get(PCSTR address) {
